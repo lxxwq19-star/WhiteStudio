@@ -14,8 +14,8 @@ import time
 from dataclasses import dataclass
 from typing import Optional, Tuple, List
 
-# 1) 设置 HF 镜像（国内网络常见问题；用户可手动覆盖为 https://huggingface.co）
-os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+# 1) 设置 HF 端点（优先使用官方源，全球通用；如需镜像可设环境变量覆盖）
+os.environ.setdefault("HF_ENDPOINT", "https://huggingface.co")
 # 2) 安静 huggingface 警告
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
@@ -69,11 +69,19 @@ def get_device(prefer_gpu: bool = True) -> torch.device:
 def _resolve_model_source(model_key: str) -> str:
     """
     决定模型从哪加载：
-    1) 如果本地 models_cache/<key>_local 目录存在  →  本地路径
-    2) 否则返回 HF 仓库 ID（需网络）
+    1) PyInstaller 打包后：从 sys._MEIPASS/birefnet_local 加载
+    2) 开发模式：如果本地 models_cache/<key>_local 目录存在 → 本地路径
+    3) 否则返回 HF 仓库 ID（需网络）
     """
     # 打包后用户不一定会传 cache_dir；尝试标准本地位置
     candidates = []
+
+    # PyInstaller 打包后的路径（sys._MEIPASS 是 PyInstaller 解压目录）
+    if getattr(sys, 'frozen', False):
+        meipass = getattr(sys, '_MEIPASS', None)
+        if meipass:
+            candidates.append(os.path.join(meipass, "birefnet_local"))
+
     # 项目根目录的 models_cache
     try:
         here = os.path.dirname(os.path.abspath(__file__))
