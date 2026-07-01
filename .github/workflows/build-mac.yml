@@ -55,6 +55,7 @@ jobs:
             --hidden-import safetensors \
             --hidden-import huggingface_hub \
             --hidden-import kornia \
+            --hidden-import accelerate \
             --add-data "app:app" \
             --add-data "models_cache/general_local:birefnet_local" \
             run.py

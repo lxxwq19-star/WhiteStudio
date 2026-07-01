@@ -19,6 +19,7 @@ einops>=0.7.0
 safetensors>=0.4.0
 huggingface_hub>=0.20.0
 kornia>=0.7.0
+accelerate>=0.25.0
 
 # 数值计算
 numpy>=1.24.0
