@@ -1,0 +1,61 @@
+name: Build WhiteStudio for macOS
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Download BiRefNet model (optional, for faster first run)
+      run: |
+        python -c "
+        import os
+        os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+        from huggingface_hub import snapshot_download
+        snapshot_download(repo_id='ZhengPeng7/BiRefNet', local_dir='models_cache/general_local', local_dir_use_symlinks=False)
+        print('Model downloaded successfully')
+        " || echo "Model download failed, will download on first run"
+    
+    - name: Build .app with PyInstaller
+      run: |
+        pyinstaller build_exe/WhiteStudio-macos.spec --noconfirm --clean
+    
+    - name: Create .dmg
+      run: |
+        # 创建临时目录
+        mkdir -p dist/dmg_tmp
+        cp -R dist/WhiteStudio.app dist/dmg_tmp/
+        
+        # 创建符号链接到 Applications (方便用户拖拽安装)
+        ln -s /Applications dist/dmg_tmp/Applications
+        
+        # 创建 .dmg
+        hdiutil create -volname "WhiteStudio" -srcfolder dist/dmg_tmp -ov -format UDZO dist/WhiteStudio.dmg
+        
+        # 显示 .dmg 信息
+        ls -lh dist/WhiteStudio.dmg
+    
+    - name: Upload .dmg as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: WhiteStudio-macOS
+        path: dist/WhiteStudio.dmg
+        retention-days: 30

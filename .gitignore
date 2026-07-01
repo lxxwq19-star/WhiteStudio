@@ -1,0 +1,82 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.dylib
+*.dll
+*.exe
+*.egg
+*.egg-info/
+dist/
+build/
+build_exe/build/
+build_exe/logs/
+*.spec
+*.egg-info/
+installed_files.txt
+*.manifest
+*.spec
+eggs/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+build/
+dist/
+*.pkg
+
+# 模型权重（太大，不推到 GitHub）
+models_cache/
+*.safetensors
+*.bin
+*.pth
+*.pt
+*.ckpt
+
+# 输出目录
+output/
+test_output/
+dist/
+build/
+
+# 测试
+test_*.py
+*_test.py
+tests/
+tmp/
+temp/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# 其他
+*.bak
+*.backup
+*.tmp
