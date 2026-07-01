@@ -14,6 +14,10 @@ import time
 from dataclasses import dataclass
 from typing import Optional, Tuple, List
 
+# 0) 禁用 TorchScript/JIT 编译（PyInstaller 打包后找不到源码 .py 文件会导致崩溃）
+os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
+os.environ.setdefault("TORCH_COMPILE_DISABLE", "1")
+
 # 1) 设置 HF 端点（优先使用官方源，全球通用；如需镜像可设环境变量覆盖）
 os.environ.setdefault("HF_ENDPOINT", "https://huggingface.co")
 # 2) 安静 huggingface 警告
@@ -23,6 +27,9 @@ os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 import numpy as np
 import torch
 import torch.nn.functional as F
+
+# 3) 运行时再次确保 JIT 关闭（防止 kornia 内部触发 TorchScript）
+torch.jit._state._set_enabled(False)
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 # ---------------------------------------------------------------------------
