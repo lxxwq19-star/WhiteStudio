@@ -2,8 +2,7 @@ name: Build WhiteStudio for macOS
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ main, master ]
   workflow_dispatch:  # 允许手动触发
 
 jobs:
