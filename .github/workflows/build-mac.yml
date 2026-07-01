@@ -3,7 +3,7 @@ name: Build WhiteStudio for macOS
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   build-mac:
@@ -21,38 +21,50 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        pip install PySide6
         pip install -r requirements.txt
+        pip install pyinstaller
+        echo "=== Installed packages ==="
+        pip list
     
-    - name: Download BiRefNet model (optional, for faster first run)
+    - name: Verify app structure
       run: |
-        python -c "
-        import os
-        os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-        from huggingface_hub import snapshot_download
-        snapshot_download(repo_id='ZhengPeng7/BiRefNet', local_dir='models_cache/general_local', local_dir_use_symlinks=False)
-        print('Model downloaded successfully')
-        " || echo "Model download failed, will download on first run"
+        echo "=== Project structure ==="
+        ls -la
+        echo "=== app directory ==="
+        ls -la app/
+        echo "=== run.py exists ==="
+        cat run.py | head -20
     
-    - name: Build .app with PyInstaller
+    - name: Build with PyInstaller (verbose)
       run: |
-        pyinstaller build_exe/WhiteStudio-macos.spec --noconfirm --clean
+        echo "=== Starting PyInstaller ==="
+        pyinstaller build_exe/WhiteStudio-macos.spec --noconfirm --clean --log-level=DEBUG 2>&1 | tee pyinstaller.log || true
+        echo "=== PyInstaller log ==="
+        cat pyinstaller.log || echo "No log file"
+        echo "=== dist directory ==="
+        ls -la dist/ || echo "dist directory not found"
+      continue-on-error: true
     
-    - name: Create .dmg
+    - name: Create .dmg (if build succeeded)
+      if: success()
       run: |
-        # 创建临时目录
         mkdir -p dist/dmg_tmp
-        cp -R dist/WhiteStudio.app dist/dmg_tmp/
-        
-        # 创建符号链接到 Applications (方便用户拖拽安装)
+        cp -R dist/WhiteStudio.app dist/dmg_tmp/ || cp -R dist/WhiteStudio dist/dmg_tmp/
         ln -s /Applications dist/dmg_tmp/Applications
-        
-        # 创建 .dmg
         hdiutil create -volname "WhiteStudio" -srcfolder dist/dmg_tmp -ov -format UDZO dist/WhiteStudio.dmg
-        
-        # 显示 .dmg 信息
         ls -lh dist/WhiteStudio.dmg
     
+    - name: Upload build logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: pyinstaller.log
+        retention-days: 7
+    
     - name: Upload .dmg as artifact
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: WhiteStudio-macOS
