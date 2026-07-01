@@ -8,31 +8,30 @@ on:
 jobs:
   build-mac:
     runs-on: macos-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install PySide6
-        pip install -r requirements.txt
-        pip install pyinstaller
-        echo "=== Key packages ==="
-        pip list | grep -iE "torch|PySide|pyinstaller|transformers|timm"
-    
-    # 预下载模型权重，打包进 .app（用户无需联网）
-    - name: Download BiRefNet model weights
-      run: |
-        echo "=== Downloading BiRefNet model (general) ==="
-        mkdir -p models_cache/general_local
-        python -c "
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PySide6
+          pip install -r requirements.txt
+          pip install pyinstaller
+          echo "=== Key packages ==="
+          pip list | grep -iE "torch|PySide|pyinstaller|transformers|timm"
+
+      - name: Download BiRefNet model weights
+        run: |
+          echo "=== Downloading BiRefNet model (general) ==="
+          mkdir -p models_cache/general_local
+          python -c "
 import os
 os.environ['HF_ENDPOINT'] = 'https://huggingface.co'
 from huggingface_hub import snapshot_download
@@ -43,84 +42,81 @@ snapshot_download(
 )
 print('Model downloaded successfully')
 " 2>&1 | tee model_download.log
-        echo ""
-        echo "=== Model files ==="
-        ls -lh models_cache/general_local/
-        echo "Total size:"
-        du -sh models_cache/general_local/
-    
-    # 用 CLI 方式打包，包含 app + 模型权重
-    - name: Run PyInstaller with model weights
-      run: |
-        echo "=== Running PyInstaller (with bundled model) ==="
-        python -m PyInstaller \
-          --name WhiteStudio \
-          --windowed \
-          --noconfirm \
-          --clean \
-          --log-level INFO \
-          --hidden-import PIL.Image \
-          --hidden-import PIL.ImageDraw \
-          --hidden-import PIL.ImageFont \
-          --hidden-import PIL.ImageFilter \
-          --hidden-import numpy \
-          --hidden-import cv2 \
-          --hidden-import torch \
-          --hidden-import transformers \
-          --hidden-import timm \
-          --hidden-import einops \
-          --hidden-import safetensors \
-          --hidden-import huggingface_hub \
-          --hidden-import birefnet \
-          --add-data "app:app" \
-          --add-data "models_cache/general_local:birefnet_local" \
-          run.py 2>&1 | tee pyinstaller.log
-        echo "PyInstaller exit code: $?"
-        echo ""
-        echo "=== dist/ contents ==="
-        find dist -maxdepth 3 2>/dev/null || echo "dist/ not found"
-    
-    - name: Create .dmg
-      run: |
-        echo "=== Looking for build output ==="
-        ls -la dist/ 2>/dev/null || { echo "dist/ not found!"; exit 1; }
-        
-        APP_SRC=""
-        if [ -d "dist/WhiteStudio.app" ]; then
-          APP_SRC="dist/WhiteStudio.app"
-        elif [ -d "dist/WhiteStudio" ]; then
-          APP_SRC="dist/WhiteStudio"
-        else
-          echo "ERROR: No .app bundle found in dist/"
-          find dist 2>/dev/null
-          exit 1
-        fi
-        
-        echo "Found: $APP_SRC"
-        echo "App size:"
-        du -sh "$APP_SRC"
-        
-        mkdir -p dist/dmg_tmp
-        cp -R "$APP_SRC" dist/dmg_tmp/WhiteStudio.app
-        ln -s /Applications dist/dmg_tmp/Applications
-        hdiutil create -volname "WhiteStudio" -srcfolder dist/dmg_tmp -ov -format UDZO dist/WhiteStudio.dmg
-        echo "=== DMG created ==="
-        ls -lh dist/WhiteStudio.dmg
-    
-    # 始终上传日志，方便排查问题
-    - name: Upload logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-logs
-        path: |
-          pyinstaller.log
-          model_download.log
-        retention-days: 7
-    
-    - name: Upload .dmg as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: WhiteStudio-macOS
-        path: dist/WhiteStudio.dmg
-        retention-days: 30
+          echo ""
+          echo "=== Model files ==="
+          ls -lh models_cache/general_local/ || echo "Model download failed"
+          echo "Total size:"
+          du -sh models_cache/general_local/ || echo "Cannot compute size"
+
+      - name: Run PyInstaller (with bundled model)
+        run: |
+          echo "=== Running PyInstaller ==="
+          python -m PyInstaller \
+            --name WhiteStudio \
+            --windowed \
+            --noconfirm \
+            --clean \
+            --log-level INFO \
+            --hidden-import PIL.Image \
+            --hidden-import PIL.ImageDraw \
+            --hidden-import PIL.ImageFont \
+            --hidden-import PIL.ImageFilter \
+            --hidden-import numpy \
+            --hidden-import cv2 \
+            --hidden-import torch \
+            --hidden-import transformers \
+            --hidden-import timm \
+            --hidden-import einops \
+            --hidden-import safetensors \
+            --hidden-import huggingface_hub \
+            --add-data "app:app" \
+            --add-data "models_cache/general_local:birefnet_local" \
+            run.py
+          echo "PyInstaller exit code: $?"
+          echo ""
+          echo "=== dist/ contents ==="
+          find dist -maxdepth 3 2>/dev/null || echo "dist/ not found"
+
+      - name: Create .dmg
+        run: |
+          echo "=== Looking for build output ==="
+          ls -la dist/ 2>/dev/null || { echo "dist/ not found!"; exit 1; }
+
+          APP_SRC=""
+          if [ -d "dist/WhiteStudio.app" ]; then
+            APP_SRC="dist/WhiteStudio.app"
+          elif [ -d "dist/WhiteStudio" ]; then
+            APP_SRC="dist/WhiteStudio"
+          else
+            echo "ERROR: No .app bundle found in dist/"
+            find dist 2>/dev/null
+            exit 1
+          fi
+
+          echo "Found: $APP_SRC"
+          echo "App size:"
+          du -sh "$APP_SRC"
+
+          mkdir -p dist/dmg_tmp
+          cp -R "$APP_SRC" dist/dmg_tmp/WhiteStudio.app
+          ln -s /Applications dist/dmg_tmp/Applications
+          hdiutil create -volname "WhiteStudio" -srcfolder dist/dmg_tmp -ov -format UDZO dist/WhiteStudio.dmg
+          echo "=== DMG created ==="
+          ls -lh dist/WhiteStudio.dmg
+
+      - name: Upload logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            pyinstaller.log
+            model_download.log
+          retention-days: 7
+
+      - name: Upload .dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhiteStudio-macOS
+          path: dist/WhiteStudio.dmg
+          retention-days: 30
