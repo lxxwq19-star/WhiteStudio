@@ -8,7 +8,6 @@ on:
 jobs:
   build-mac:
     runs-on: macos-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,26 +28,13 @@ jobs:
 
       - name: Download BiRefNet model weights
         run: |
-          echo "=== Downloading BiRefNet model (general) ==="
+          echo "=== Downloading BiRefNet model ==="
           mkdir -p models_cache/general_local
-          python -c "
-import os
-os.environ['HF_ENDPOINT'] = 'https://huggingface.co'
-from huggingface_hub import snapshot_download
-snapshot_download(
-    repo_id='ZhengPeng7/BiRefNet',
-    local_dir='models_cache/general_local',
-    local_dir_use_symlinks=False,
-)
-print('Model downloaded successfully')
-" 2>&1 | tee model_download.log
-          echo ""
+          python download_model.py
           echo "=== Model files ==="
           ls -lh models_cache/general_local/ || echo "Model download failed"
-          echo "Total size:"
-          du -sh models_cache/general_local/ || echo "Cannot compute size"
 
-      - name: Run PyInstaller (with bundled model)
+      - name: Run PyInstaller
         run: |
           echo "=== Running PyInstaller ==="
           python -m PyInstaller \
@@ -60,7 +46,6 @@ print('Model downloaded successfully')
             --hidden-import PIL.Image \
             --hidden-import PIL.ImageDraw \
             --hidden-import PIL.ImageFont \
-            --hidden-import PIL.ImageFilter \
             --hidden-import numpy \
             --hidden-import cv2 \
             --hidden-import torch \
@@ -72,47 +57,24 @@ print('Model downloaded successfully')
             --add-data "app:app" \
             --add-data "models_cache/general_local:birefnet_local" \
             run.py
-          echo "PyInstaller exit code: $?"
-          echo ""
           echo "=== dist/ contents ==="
-          find dist -maxdepth 3 2>/dev/null || echo "dist/ not found"
+          ls -la dist/ 2>/dev/null || echo "dist/ not found"
 
       - name: Create .dmg
         run: |
-          echo "=== Looking for build output ==="
+          echo "=== Creating DMG ==="
           ls -la dist/ 2>/dev/null || { echo "dist/ not found!"; exit 1; }
-
-          APP_SRC=""
-          if [ -d "dist/WhiteStudio.app" ]; then
-            APP_SRC="dist/WhiteStudio.app"
-          elif [ -d "dist/WhiteStudio" ]; then
-            APP_SRC="dist/WhiteStudio"
-          else
-            echo "ERROR: No .app bundle found in dist/"
-            find dist 2>/dev/null
+          APP_SRC="dist/WhiteStudio.app"
+          if [ ! -d "$APP_SRC" ]; then
+            echo "ERROR: WhiteStudio.app not found"
             exit 1
           fi
-
-          echo "Found: $APP_SRC"
-          echo "App size:"
-          du -sh "$APP_SRC"
-
           mkdir -p dist/dmg_tmp
-          cp -R "$APP_SRC" dist/dmg_tmp/WhiteStudio.app
+          cp -R "$APP_SRC" dist/dmg_tmp/
           ln -s /Applications dist/dmg_tmp/Applications
           hdiutil create -volname "WhiteStudio" -srcfolder dist/dmg_tmp -ov -format UDZO dist/WhiteStudio.dmg
           echo "=== DMG created ==="
           ls -lh dist/WhiteStudio.dmg
-
-      - name: Upload logs (always)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            pyinstaller.log
-            model_download.log
-          retention-days: 7
 
       - name: Upload .dmg
         uses: actions/upload-artifact@v4
