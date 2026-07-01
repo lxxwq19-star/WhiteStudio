@@ -24,58 +24,63 @@ jobs:
         pip install PySide6
         pip install -r requirements.txt
         pip install pyinstaller
-        echo "=== Installed packages ==="
-        pip list | grep -iE "torch|pySide|pyinstaller|transformers"
+        echo "=== Key packages ==="
+        pip list | grep -iE "torch|PySide|pyinstaller|transformers|timm"
     
-    - name: Build with PyInstaller
+    - name: Run PyInstaller (no spec, direct CLI)
       run: |
-        echo "=== Starting PyInstaller build ==="
-        pyinstaller build_exe/WhiteStudio-macos.spec --noconfirm --clean --log-level=INFO 2>&1 | tee pyinstaller.log
-        echo "=== EXIT CODE: $? ==="
+        echo "=== Running PyInstaller (direct CLI) ==="
+        python -m PyInstaller \
+          --name WhiteStudio \
+          --windowed \
+          --noconfirm \
+          --clean \
+          --log-level INFO \
+          --hidden-import PIL.Image \
+          --hidden-import PIL.ImageDraw \
+          --hidden-import PIL.ImageFont \
+          --hidden-import numpy \
+          --hidden-import cv2 \
+          --hidden-import torch \
+          --hidden-import transformers \
+          --hidden-import timm \
+          --hidden-import einops \
+          --hidden-import safetensors \
+          --hidden-import huggingface_hub \
+          --add-data "app:app" \
+          run.py 2>&1 | tee pyinstaller.log
+        echo "=== PyInstaller exit code: $? ==="
         echo ""
-        echo "=== Everything in dist/ (recursive, depth 3) ==="
+        echo "=== dist/ contents ==="
         find dist -maxdepth 3 2>/dev/null || echo "dist/ not found"
-        echo ""
-        echo "=== Top level of dist/ ==="
-        ls -laR dist/ 2>/dev/null || echo "dist/ empty or missing"
     
     - name: Create .dmg
       run: |
-        echo "=== Scanning for build output ==="
-        # 列出所有可能的产物
-        ls -la dist/
+        echo "=== Looking for build output ==="
+        ls -la dist/ 2>/dev/null || { echo "dist/ not found!"; exit 1; }
         
-        # 查找 .app 或目录
-        APP_PATH=""
+        # Find the .app bundle
+        APP_SRC=""
         if [ -d "dist/WhiteStudio.app" ]; then
-          APP_PATH="dist/WhiteStudio.app"
-          echo "Found: WhiteStudio.app"
+          APP_SRC="dist/WhiteStudio.app"
         elif [ -d "dist/WhiteStudio" ]; then
-          APP_PATH="dist/WhiteStudio"
-          echo "Found: WhiteStudio directory"
+          APP_SRC="dist/WhiteStudio"
         else
-          # 列出 dist 下所有内容，找任何 .app 或目录
-          echo "Looking for any .app bundle..."
-          find dist -name "*.app" -type d 2>/dev/null
-          echo "All items in dist:"
-          find dist -maxdepth 2 2>/dev/null
-        fi
-        
-        if [ -z "$APP_PATH" ]; then
-          echo "ERROR: Cannot find build output!"
+          echo "ERROR: No .app bundle found in dist/"
+          echo "Contents of dist/:"
+          find dist 2>/dev/null
           exit 1
         fi
         
+        echo "Found: $APP_SRC"
         mkdir -p dist/dmg_tmp
-        cp -R "$APP_PATH" dist/dmg_tmp/WhiteStudio.app
+        cp -R "$APP_SRC" dist/dmg_tmp/WhiteStudio.app
         ln -s /Applications dist/dmg_tmp/Applications
-        
         hdiutil create -volname "WhiteStudio" -srcfolder dist/dmg_tmp -ov -format UDZO dist/WhiteStudio.dmg
-        echo ""
-        echo "=== DMG created successfully ==="
+        echo "=== DMG created ==="
         ls -lh dist/WhiteStudio.dmg
     
-    - name: Upload build logs
+    - name: Upload build logs (always)
       if: always()
       uses: actions/upload-artifact@v4
       with:
