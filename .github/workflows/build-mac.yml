@@ -25,45 +25,54 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
         echo "=== Installed packages ==="
-        pip list
-    
-    - name: Verify app structure
-      run: |
-        echo "=== Project structure ==="
-        ls -la
-        echo "=== app directory ==="
-        ls -la app/
-        echo "=== run.py exists ==="
-        cat run.py | head -20
+        pip list | grep -iE "torch|pySide|pyinstaller|transformers"
     
     - name: Build with PyInstaller
       run: |
-        echo "=== Starting PyInstaller ==="
+        echo "=== Starting PyInstaller build ==="
         pyinstaller build_exe/WhiteStudio-macos.spec --noconfirm --clean --log-level=INFO 2>&1 | tee pyinstaller.log
-        echo "=== dist directory contents ==="
-        find dist -maxdepth 2 -type f -o -type d 2>/dev/null | head -30
-        echo "=== Check for .app bundle ==="
-        ls -la dist/*.app 2>/dev/null || echo "No .app found"
-        ls -la dist/ 2>/dev/null || echo "dist empty or missing"
+        echo "=== EXIT CODE: $? ==="
+        echo ""
+        echo "=== Everything in dist/ (recursive, depth 3) ==="
+        find dist -maxdepth 3 2>/dev/null || echo "dist/ not found"
+        echo ""
+        echo "=== Top level of dist/ ==="
+        ls -laR dist/ 2>/dev/null || echo "dist/ empty or missing"
     
     - name: Create .dmg
       run: |
-        mkdir -p dist/dmg_tmp
-        # 尝试多种可能的产物路径
+        echo "=== Scanning for build output ==="
+        # 列出所有可能的产物
+        ls -la dist/
+        
+        # 查找 .app 或目录
+        APP_PATH=""
         if [ -d "dist/WhiteStudio.app" ]; then
-          cp -R dist/WhiteStudio.app dist/dmg_tmp/
-          echo "Found .app bundle"
+          APP_PATH="dist/WhiteStudio.app"
+          echo "Found: WhiteStudio.app"
         elif [ -d "dist/WhiteStudio" ]; then
-          # 如果是目录形式，重命名为 .app
-          mv dist/WhiteStudio dist/dmg_tmp/WhiteStudio.app
-          echo "Found directory, renamed to .app"
+          APP_PATH="dist/WhiteStudio"
+          echo "Found: WhiteStudio directory"
         else
-          echo "ERROR: No build output found!"
+          # 列出 dist 下所有内容，找任何 .app 或目录
+          echo "Looking for any .app bundle..."
+          find dist -name "*.app" -type d 2>/dev/null
+          echo "All items in dist:"
+          find dist -maxdepth 2 2>/dev/null
+        fi
+        
+        if [ -z "$APP_PATH" ]; then
+          echo "ERROR: Cannot find build output!"
           exit 1
         fi
+        
+        mkdir -p dist/dmg_tmp
+        cp -R "$APP_PATH" dist/dmg_tmp/WhiteStudio.app
         ln -s /Applications dist/dmg_tmp/Applications
+        
         hdiutil create -volname "WhiteStudio" -srcfolder dist/dmg_tmp -ov -format UDZO dist/WhiteStudio.dmg
-        echo "=== DMG created ==="
+        echo ""
+        echo "=== DMG created successfully ==="
         ls -lh dist/WhiteStudio.dmg
     
     - name: Upload build logs
@@ -75,7 +84,6 @@ jobs:
         retention-days: 7
     
     - name: Upload .dmg as artifact
-      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: WhiteStudio-macOS
