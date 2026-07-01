@@ -36,23 +36,34 @@ jobs:
         echo "=== run.py exists ==="
         cat run.py | head -20
     
-    - name: Build with PyInstaller (verbose)
+    - name: Build with PyInstaller
       run: |
         echo "=== Starting PyInstaller ==="
-        pyinstaller build_exe/WhiteStudio-macos.spec --noconfirm --clean --log-level=DEBUG 2>&1 | tee pyinstaller.log || true
-        echo "=== PyInstaller log ==="
-        cat pyinstaller.log || echo "No log file"
-        echo "=== dist directory ==="
-        ls -la dist/ || echo "dist directory not found"
-      continue-on-error: true
+        pyinstaller build_exe/WhiteStudio-macos.spec --noconfirm --clean --log-level=INFO 2>&1 | tee pyinstaller.log
+        echo "=== dist directory contents ==="
+        find dist -maxdepth 2 -type f -o -type d 2>/dev/null | head -30
+        echo "=== Check for .app bundle ==="
+        ls -la dist/*.app 2>/dev/null || echo "No .app found"
+        ls -la dist/ 2>/dev/null || echo "dist empty or missing"
     
-    - name: Create .dmg (if build succeeded)
-      if: success()
+    - name: Create .dmg
       run: |
         mkdir -p dist/dmg_tmp
-        cp -R dist/WhiteStudio.app dist/dmg_tmp/ || cp -R dist/WhiteStudio dist/dmg_tmp/
+        # 尝试多种可能的产物路径
+        if [ -d "dist/WhiteStudio.app" ]; then
+          cp -R dist/WhiteStudio.app dist/dmg_tmp/
+          echo "Found .app bundle"
+        elif [ -d "dist/WhiteStudio" ]; then
+          # 如果是目录形式，重命名为 .app
+          mv dist/WhiteStudio dist/dmg_tmp/WhiteStudio.app
+          echo "Found directory, renamed to .app"
+        else
+          echo "ERROR: No build output found!"
+          exit 1
+        fi
         ln -s /Applications dist/dmg_tmp/Applications
         hdiutil create -volname "WhiteStudio" -srcfolder dist/dmg_tmp -ov -format UDZO dist/WhiteStudio.dmg
+        echo "=== DMG created ==="
         ls -lh dist/WhiteStudio.dmg
     
     - name: Upload build logs
